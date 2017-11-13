@@ -3,24 +3,25 @@ module Main where
 import System.Environment
 import Data.List (nub, sortBy)
 import Data.Function
-import Data.Text.Lazy as T
-import Data.Text.Lazy.IO as TIO
-import Data.Char (isLetter)
+import Data.Char (isLetter, toLower)
+import Network.HTTP.Simple
+import qualified Data.ByteString.Lazy.Char8 as L8
+import Data.Map hiding (map, filter)
 
 main :: IO ()
 main = do
   [s] <- getArgs
-  f <- TIO.readFile s
-  let wList = wordList f
-  mapM_ (Prelude.putStrLn . showWordCount) $ Prelude.take 5 $ sortWordCount $ wordCount $ wordList f
+  req <- parseRequest s
+  response <- httpLBS req
+  mapM_ (putStrLn . showWordCount) $ take 5 $ sortWordCount $ wordCount $ map cleanWord $ wordList response
 
-wordList :: Text -> [Text]
-wordList f = Prelude.map (T.filter isLetter) $ T.words $ toLower f
+wordList = words . (map toLower) . L8.unpack . getResponseBody
 
-wordCount :: [Text] -> [(Text, Int)]
-wordCount xs = Prelude.zip xs $ Prelude.map (\x -> Prelude.length (Prelude.filter (== x) xs)) $ nub xs
+cleanWord = filter isLetter
 
-showWordCount :: (Text, Int) -> String
-showWordCount (word, count) = unpack word ++ ": " ++ show count
+wordCount xs = zip xs $ map (\x -> length (filter (== x) xs)) $ nub xs
 
+showWordCount (word, count) = word ++ ": " ++ show count
+
+sortWordCount :: Ord count => [(word, count)] -> [(word, count)]
 sortWordCount = sortBy (flip compare `on` snd)
